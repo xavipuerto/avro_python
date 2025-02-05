@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  # Base de Datos PostgreSQL 17
+  postgres:
+    image: postgres:17
+    container_name: postgres_sensores
+    restart: always
+    environment:
+      POSTGRES_USER: sensor_user
+      POSTGRES_PASSWORD: sensor_password
+      POSTGRES_DB: sensores_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # ZooKeeper para gestionar Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    restart: always
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  # Kafka Broker
+  broker:
+    image: confluentinc/cp-kafka:latest
+    container_name: broker
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "29092:29092"  # Para conexiones internas dentro de Docker
+      - "9092:9092"    # Para conexiones desde la máquina host
+      - "9101:9101"    # JMX monitoring
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+
+  # Schema Registry para manejar los esquemas Avro
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    container_name: schema_registry
+    restart: always
+    depends_on:
+      - broker
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://broker:29092
+      SCHEMA_REGISTRY_HOST_NAME: schema_registry
+
+volumes:
+  postgres_data:
